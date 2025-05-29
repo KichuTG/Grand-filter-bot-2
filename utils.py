@@ -43,17 +43,85 @@ class temp(object):
     FILES_IDS = {}
 
 
-async def is_subscribed(bot, query, channel):
-    btn = []
-    for id in channel:
-        chat = await bot.get_chat(int(id))
+async def is_subscribed_v2(bot, query, channels):
+    """
+    Enhanced version with better error handling and logging
+    """
+    not_joined_buttons = []
+    user_id = query.from_user.id
+    
+    for channel_id in channels:
         try:
-            await bot.get_chat_member(id, query.from_user.id)
-        except UserNotParticipant:
-            btn.append([InlineKeyboardButton(f'Join {chat.title}', url=chat.invite_link)])
+            channel_id = int(str(channel_id).replace('@', '').replace('-100', '-100'))
+            
+            # Check membership
+            try:
+                member = await bot.get_chat_member(channel_id, user_id)
+                if member.status in [
+                    enums.ChatMemberStatus.MEMBER,
+                    enums.ChatMemberStatus.ADMINISTRATOR,
+                    enums.ChatMemberStatus.OWNER
+                ]:
+                    continue  # User is subscribed, check next channel
+            except UserNotParticipant:
+                pass  # User not subscribed, will create join button
+            except Exception as e:
+                logger.warning(f"Error checking membership for {channel_id}: {e}")
+                continue
+            
+            # Get channel info and create join button
+            try:
+                chat = await bot.get_chat(channel_id)
+                invite_link = await get_invite_link(bot, channel_id, chat)
+                
+                if invite_link:
+                    not_joined_buttons.append([
+                        InlineKeyboardButton(
+                            f"📢 Join {chat.title}",
+                            url=invite_link
+                        )
+                    ])
+                    
+            except Exception as e:
+                logger.error(f"Error creating join button for {channel_id}: {e}")
+                continue
+                
         except Exception as e:
-            pass
-    return btn
+            logger.error(f"Unexpected error processing channel {channel_id}: {e}")
+            continue
+    
+    return not_joined_buttons
+
+
+async def get_invite_link(bot, channel_id, chat=None):
+    """
+    Helper function to get invite link for a channel
+    """
+    try:
+        # Try existing invite link first
+        if chat and hasattr(chat, 'invite_link') and chat.invite_link:
+            return chat.invite_link
+            
+        # Try to create new invite link
+        try:
+            invite = await bot.create_chat_invite_link(channel_id)
+            return invite.invite_link
+        except ChatAdminRequired:
+            logger.warning(f"Bot is not admin in channel {channel_id}")
+        except Exception as e:
+            logger.warning(f"Cannot create invite link for {channel_id}: {e}")
+        
+        # Fallback to username-based link
+        if not chat:
+            chat = await bot.get_chat(channel_id)
+            
+        if hasattr(chat, 'username') and chat.username:
+            return f"https://t.me/{chat.username}"
+            
+    except Exception as e:
+        logger.error(f"Error getting invite link for {channel_id}: {e}")
+    
+    return None
 
 async def get_poster(query, bulk=False, id=False, file=None):
     if not id:
