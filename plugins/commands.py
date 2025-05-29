@@ -51,47 +51,51 @@ async def start(client, message):
             parse_mode=enums.ParseMode.HTML
         )
         return
-    if AUTH_CHANNEL and not await is_subscribed(client, message):
+    if AUTH_CHANNEL:
+    btn = await is_subscribed(client, message, AUTH_CHANNEL)
+    if btn:  # If there are channels the user hasn't joined
         try:
-            invite_link = await client.create_chat_invite_link(int(AUTH_CHANNEL))
-        except ChatAdminRequired:
-            logger.error("Make sure Bot is admin in Forcesub channel")
-            return
-        btn = [
-            [
-                InlineKeyboardButton(
-                    "🤖 𝖩𝗈𝗂𝗇 𝖴𝗉𝖽𝖺𝗍𝖾𝗌 𝖢𝗁𝖺𝗇𝗇𝖾𝗅 🤖", url=invite_link.invite_link
-                )
-            ]
-        ]
-        if message.command[1] != "subscribe" or message.command[1] != "send_all":
-            try:
-                kk, file_id = message.command[1].split("_", 1)
-                pre = 'checksubp' if kk == 'filep' else 'checksub' 
-                btn.append([InlineKeyboardButton("⟳ 𝖳𝗋𝗒 𝖠𝗀𝖺𝗂𝗇 ⟳", callback_data=f"{pre}#{file_id}")])
-            except (IndexError, ValueError):
-                btn.append([InlineKeyboardButton("⟳ 𝖳𝗋𝗒 𝖠𝗀𝖺𝗂𝗇 ⟳", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
-        await client.send_message(
-            chat_id=message.from_user.id,
-            text="**Please Join My Updates Channel to use this Bot!**",
-            reply_markup=InlineKeyboardMarkup(btn),
-            parse_mode=enums.ParseMode.MARKDOWN
+            # Collect invite links for all channels in AUTH_CHANNEL
+            invite_links = []
+            for channel_id in AUTH_CHANNEL:
+                try:
+                    invite_link = await client.create_chat_invite_link(int(channel_id))
+                    chat = await client.get_chat(int(channel_id))
+                    invite_links.append(
+                        InlineKeyboardButton(
+                            f"🤖 Join {chat.title} 🤖", url=invite_link.invite_link
+                        )
+                    )
+                except ChatAdminRequired:
+                    logger.error(f"Make sure Bot is admin in channel {channel_id}")
+                    continue  # Skip this channel if bot lacks admin rights
+                except Exception as e:
+                    logger.error(f"Error creating invite link for channel {channel_id}: {e}")
+                    continue
+
+            # Organize buttons: one button per channel
+            btn = [[button] for button in invite_links]
+
+            # Add "Try Again" button based on command
+            if len(message.command) > 1 and message.command[1] not in ["subscribe", "send_all"]:
+                try:
+                    kk, file_id = message.command[1].split("_", 1)
+                    pre = 'checksubp' if kk == 'filep' else 'checksub'
+                    btn.append([InlineKeyboardButton("⟳ Try Again ⟳", callback_data=f"{pre}#{file_id}")])
+                except (IndexError, ValueError):
+                    btn.append([InlineKeyboardButton("⟳ Try Again ⟳", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
+            else:
+                btn.append([InlineKeyboardButton("⟳ Try Again ⟳", url=f"https://t.me/{temp.U_NAME}?start=true")])
+
+            # Send message with all required channel join buttons
+            await client.send_message(
+                chat_id=message.from_user.id,
+                text="**Please join all required channels to use this Bot!**",
+                reply_markup=InlineKeyboardMarkup(btn),
+                parse_mode=enums.ParseMode.MARKDOWN
             )
-        return
-        
-    if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
-        buttons = [[
-                    InlineKeyboardButton('➕ 𝖠𝖽𝖽 𝖬𝖾 𝖳𝗈 𝖸𝗈𝗎𝗋 𝖦𝗋𝗈𝗎𝗉 ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
-                ],[
-                    InlineKeyboardButton('🔎 𝖲𝖾𝖺𝗋𝖼𝗁  𝖧𝖾𝗋𝖾 🗂', switch_inline_query_current_chat='')
-                ]]
-        reply_markup = InlineKeyboardMarkup(buttons)
-        await message.reply_photo(
-            photo=random.choice(PICS),
-            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-            reply_markup=reply_markup,
-            parse_mode=enums.ParseMode.HTML
-        )
+        except Exception as e:
+            logger.error(f"Error in subscription check: {e}")
         return
     data = message.command[1]
     try:
