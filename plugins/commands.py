@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 BATCH_FILES = {}
 
+# Fixed start command handler
 @Client.on_message(filters.command("start") & filters.incoming)
 async def start(client, message):
     if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
@@ -34,9 +35,11 @@ async def start(client, message):
             await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))
             await db.add_chat(message.chat.id, message.chat.title)
         return
+        
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
         await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(message.from_user.id, message.from_user.mention))
+    
     if len(message.command) != 2:
         buttons = [[
                     InlineKeyboardButton('➕ 𝖠𝖽𝖽 𝖬𝖾 𝖳𝗈 𝖤𝖴𝖱 𝖦𝗋𝗈𝗎𝗉 ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
@@ -51,32 +54,20 @@ async def start(client, message):
             parse_mode=enums.ParseMode.HTML
         )
         return
-    if AUTH_CHANNEL:
-        btn = await is_subscribed(client, message, AUTH_CHANNEL)
-        if btn:  # If there are channels the user hasn't joined
+        
+    # Fixed subscription check
+    if AUTH_CHANNEL and len(AUTH_CHANNEL) > 0:
+        not_joined_channels = await is_subscribed(client, message, AUTH_CHANNEL)
+        if not_joined_channels:  # If user hasn't joined all required channels
             try:
-                # Collect invite links for all channels in AUTH_CHANNEL
-                invite_links = []
-                for channel_id in AUTH_CHANNEL:
-                    try:
-                        invite_link = await client.create_chat_invite_link(int(channel_id))
-                        chat = await client.get_chat(int(channel_id))
-                        invite_links.append(
-                            InlineKeyboardButton(
-                                f"🤖 Join {chat.title} 🤖", url=invite_link.invite_link
-                            )
-                        )
-                    except ChatAdminRequired:
-                        logger.error(f"Make sure Bot is admin in channel {channel_id}")
-                        continue  # Skip this channel if bot lacks admin rights
-                    except Exception as e:
-                        logger.error(f"Error creating invite link for channel {channel_id}: {e}")
-                        continue
-
-                # Organize buttons: one button per channel
-                btn = [[button] for button in invite_links]
-
-                # Add "Try Again" button based on command
+                # Create buttons for channels user hasn't joined
+                btn = []
+                
+                # Add join buttons for each channel the user hasn't joined
+                for button_row in not_joined_channels:
+                    btn.append(button_row)
+                
+                # Add "Try Again" button
                 if len(message.command) > 1 and message.command[1] not in ["subscribe", "send_all"]:
                     try:
                         kk, file_id = message.command[1].split("_", 1)
@@ -85,18 +76,19 @@ async def start(client, message):
                     except (IndexError, ValueError):
                         btn.append([InlineKeyboardButton("⟳ Try Again ⟳", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
                 else:
-                    btn.append([InlineKeyboardButton("⟳ Try Again ⟳", url=f"https.t.me/{temp.U_NAME}?start=true")])
+                    btn.append([InlineKeyboardButton("⟳ Try Again ⟳", url=f"https://t.me/{temp.U_NAME}?start=subscribe")])
 
-                # Send message with all required channel join buttons
+                # Send subscription message
                 await client.send_message(
                     chat_id=message.from_user.id,
-                    text="**Please join all required channels to use this Bot!**",
+                    text="**⚠️ Access Denied! ⚠️**\n\n🔐 You must join all required channels to use this bot.\n\n👆 Click the buttons above to join, then click '⟳ Try Again ⟳'",
                     reply_markup=InlineKeyboardMarkup(btn),
                     parse_mode=enums.ParseMode.MARKDOWN
                 )
+                return
             except Exception as e:
                 logger.error(f"Error in subscription check: {e}")
-            return
+                return
 
  
     data = message.command[1]
