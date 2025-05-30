@@ -23,33 +23,32 @@ BATCH_FILES = {}
 async def start(client, message):
     if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         buttons = [[
-                    InlineKeyboardButton('➕ 𝖠𝖽𝖽 𝖬𝖾 𝖳𝗈 𝖤𝖴𝖱 𝖦𝗋𝗈𝗎𝗉 ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
-                ],[
-                    InlineKeyboardButton('🔎 𝖲𝖾𝖺𝗋𝖼𝗁  𝖧𝖾𝗋𝖾 🗂', switch_inline_query_current_chat='')
-                ]]
+            InlineKeyboardButton('➕ 𝖠𝖽𝖽 𝖬𝖾 𝖳𝗈 𝖤𝖴𝖱 𝖦𝗋𝗈𝗎𝗉 ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
+        ], [
+            InlineKeyboardButton('🔎 𝖲𝖾𝖺𝗋𝖼𝗁  𝖧𝖾𝗋𝖾 🗂', switch_inline_query_current_chat='')
+        ]]
         reply_markup = InlineKeyboardMarkup(buttons)
         await message.reply(script.START_TXT.format(message.from_user.mention if message.from_user else message.chat.title, temp.U_NAME, temp.B_NAME), reply_markup=reply_markup)
         await asyncio.sleep(2)
         if not await db.get_chat(message.chat.id):
-            total=await client.get_chat_members_count(message.chat.id)
+            total = await client.get_chat_members_count(message.chat.id)
             await client.send_message(LOG_CHANNEL, script.LOG_TEXT_G.format(message.chat.title, message.chat.id, total, "Unknown"))
             await db.add_chat(message.chat.id, message.chat.title)
         return
-        
+
     if not await db.is_user_exist(message.from_user.id):
         await db.add_user(message.from_user.id, message.from_user.first_name)
         await client.send_message(LOG_CHANNEL, script.LOG_TEXT_P.format(message.from_user.id, message.from_user.mention))
-    
+
     if len(message.command) != 2:
         buttons = [[
-                    InlineKeyboardButton('➕ 𝖠𝖽𝖽 𝖬𝖾 𝖳𝗈 𝖤𝖴𝖱 𝖦𝗋𝗈𝗎𝗉 ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
-                ],[
-                    InlineKeyboardButton('🔎 𝖲𝖾𝖺𝗋𝖼𝗁  𝖧𝖾𝗋𝖾 🗂', switch_inline_query_current_chat='')
-                ]]
+            InlineKeyboardButton('➕ 𝖠𝖽𝖽 𝖬𝖾 𝖳𝗈 𝖤𝖴𝖱 𝖦𝗋𝗈𝗎𝗉 ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
+        ], [
+            InlineKeyboardButton('🔎 𝖲𝖾𝖺𝗋𝖼𝗁  𝖧𝖾𝗋𝖾 🗂', switch_inline_query_current_chat='')
+        ]]
         reply_markup = InlineKeyboardMarkup(buttons)
-        #add emoji loading then run 1 sec and dlt
-        m=await message.reply_text("🚀") 
-        await asyncio.sleep(1.2)#1.2sec sleep
+        m = await message.reply_text("🚀")
+        await asyncio.sleep(1.2)
         await m.delete()
         await message.reply_photo(
             photo=random.choice(PICS),
@@ -58,41 +57,42 @@ async def start(client, message):
             parse_mode=enums.ParseMode.HTML
         )
         return
-    
-if not await is_subscribed(message.from_user.id, client):
-    links = await create_invite_links(client)
-    btn = [[InlineKeyboardButton("🤖 Join Updates Channel", url=url)] for url in links.values()]
 
-    if len(message.command) == 2:
-        try:
-            kk, file_id = message.command[1].split("_", 1)
-            pre = 'checksubp' if kk == 'filep' else 'checksub'
-            btn.append([InlineKeyboardButton(" Try Again", callback_data=f"{pre}#{file_id}")])
-        except (IndexError, ValueError):
-            btn.append([InlineKeyboardButton(" Try Again", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
-    
-    await client.send_message(
-        chat_id=message.from_user.id,
-        text="**Please Join My Updates Channel to use this Bot!**",
-        reply_markup=InlineKeyboardMarkup(btn),
-        parse_mode=enums.ParseMode.MARKDOWN
-    )
-    return
+    # ✅ THIS WAS OUTSIDE. NOW MOVED INSIDE THE FUNCTION
+    if not await is_subscribed(message.from_user.id, client):
+        links = await create_invite_links(client)
+        btn = [[InlineKeyboardButton("🤖 Join Updates Channel", url=url)] for url in links.values()]
 
-if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
-    buttons = [[
-        InlineKeyboardButton('➕ Add Me To Your Group ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
-    ], [
-        InlineKeyboardButton('🔎 Search Here 🗂', switch_inline_query_current_chat='')
-    ]]
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await message.reply_photo(
-        photo=random.choice(PICS),
-        caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
-        reply_markup=reply_markup,
-        parse_mode=enums.ParseMode.HTML
-    )
-    return
+        if len(message.command) == 2:
+            try:
+                kk, file_id = message.command[1].split("_", 1)
+                pre = 'checksubp' if kk == 'filep' else 'checksub'
+                btn.append([InlineKeyboardButton(" Try Again", callback_data=f"{pre}#{file_id}")])
+            except (IndexError, ValueError):
+                btn.append([InlineKeyboardButton(" Try Again", url=f"https://t.me/{temp.U_NAME}?start={message.command[1]}")])
+
+        await client.send_message(
+            chat_id=message.from_user.id,
+            text="**Please Join My Updates Channel to use this Bot!**",
+            reply_markup=InlineKeyboardMarkup(btn),
+            parse_mode=enums.ParseMode.MARKDOWN
+        )
+        return
+
+    if len(message.command) == 2 and message.command[1] in ["subscribe", "error", "okay", "help"]:
+        buttons = [[
+            InlineKeyboardButton('➕ Add Me To Your Group ➕', url=f"http://t.me/{temp.U_NAME}?startgroup=true")
+        ], [
+            InlineKeyboardButton('🔎 Search Here 🗂', switch_inline_query_current_chat='')
+        ]]
+        reply_markup = InlineKeyboardMarkup(buttons)
+        await message.reply_photo(
+            photo=random.choice(PICS),
+            caption=script.START_TXT.format(message.from_user.mention, temp.U_NAME, temp.B_NAME),
+            reply_markup=reply_markup,
+            parse_mode=enums.ParseMode.HTML
+        )
+        return
     
     if len(message.command) == 2 and message.command[1].startswith('mntgx'):
         searches = message.command[1].split("-", 1)[1] 
