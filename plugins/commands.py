@@ -56,7 +56,6 @@ async def start(client, message):
         return
     
 if not await is_subscribed(message.from_user.id, client):
-if not await is_subscribed(message.from_user.id, client):
         links = await create_invite_links(client)
         btn = [[InlineKeyboardButton("🤖 Join Updates Channel", url=url)] for url in links.values()]
 
@@ -89,6 +88,13 @@ if not await is_subscribed(message.from_user.id, client):
         parse_mode=enums.ParseMode.HTML
     )
     return
+    
+    if len(message.command) == 2 and message.command[1].startswith('mntgx'):
+        searches = message.command[1].split("-", 1)[1] 
+        search = searches.replace('-',' ')
+        message.text = search 
+        await auto_filter(client, message) 
+        return
 
  
     data = message.command[1]
