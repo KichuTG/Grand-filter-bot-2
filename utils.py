@@ -43,85 +43,56 @@ class temp(object):
     FILES_IDS = {}
 
 
-async def is_subscribed_v2(bot, query, channels):
-    """
-    Enhanced version with better error handling and logging
-    """
-    not_joined_buttons = []
-    user_id = query.from_user.id
-    
-    for channel_id in channels:
+from pyrogram.enums import ChatMemberStatus
+from database.users_chats_db import db
+
+#  @MrMNTG @MusammilN
+#please give credits https://github.com/MN-BOTS/ShobanaFilterBot
+JOIN_REQUEST_USERS = {} 
+#  @MrMNTG @MusammilN
+#please give credits https://github.com/MN-BOTS/ShobanaFilterBot
+
+async def is_subscribed(user_id: int, client) -> bool:
+    auth_channels = await db.get_auth_channels()
+    if not auth_channels:
+        return True  # No channels to check
+
+    # First check: Is user already a member/admin/owner in any auth channel?
+    for channel in auth_channels:
         try:
-            channel_id = int(str(channel_id).replace('@', '').replace('-100', '-100'))
-            
-            # Check membership
-            try:
-                member = await bot.get_chat_member(channel_id, user_id)
-                if member.status in [
-                    enums.ChatMemberStatus.MEMBER,
-                    enums.ChatMemberStatus.ADMINISTRATOR,
-                    enums.ChatMemberStatus.OWNER
-                ]:
-                    continue  # User is subscribed, check next channel
-            except UserNotParticipant:
-                pass  # User not subscribed, will create join button
-            except Exception as e:
-                logger.warning(f"Error checking membership for {channel_id}: {e}")
-                continue
-            
-            # Get channel info and create join button
-            try:
-                chat = await bot.get_chat(channel_id)
-                invite_link = await get_invite_link(bot, channel_id, chat)
-                
-                if invite_link:
-                    not_joined_buttons.append([
-                        InlineKeyboardButton(
-                            f"📢 Join {chat.title}",
-                            url=invite_link
-                        )
-                    ])
-                    
-            except Exception as e:
-                logger.error(f"Error creating join button for {channel_id}: {e}")
-                continue
-                
-        except Exception as e:
-            logger.error(f"Unexpected error processing channel {channel_id}: {e}")
+            member = await client.get_chat_member(channel, user_id)
+            if member.status in [
+                ChatMemberStatus.MEMBER,
+                ChatMemberStatus.ADMINISTRATOR,
+                ChatMemberStatus.OWNER,
+            ]:
+                return True
+        except Exception:
+            continue  # Skip if channel is inaccessible
+
+    # Second check: Has user sent join requests to all auth channels?
+    requested_channels = JOIN_REQUEST_USERS.get(user_id, set())
+    if set(auth_channels).issubset(requested_channels):
+        return True
+
+    return False
+
+#  @MrMNTG @MusammilN
+#please give credits https://github.com/MN-BOTS/ShobanaFilterBot
+async def create_invite_links(client) -> dict:
+    links = {}
+    auth_channels = await db.get_auth_channels()
+    for channel in auth_channels:
+        try:
+            invite = await client.create_chat_invite_link(
+                channel,
+                creates_join_request=True,
+                name="BotAuthAccess"
+            )
+            links[channel] = invite.invite_link
+        except Exception:
             continue
-    
-    return not_joined_buttons
-
-
-async def get_invite_link(bot, channel_id, chat=None):
-    """
-    Helper function to get invite link for a channel
-    """
-    try:
-        # Try existing invite link first
-        if chat and hasattr(chat, 'invite_link') and chat.invite_link:
-            return chat.invite_link
-            
-        # Try to create new invite link
-        try:
-            invite = await bot.create_chat_invite_link(channel_id)
-            return invite.invite_link
-        except ChatAdminRequired:
-            logger.warning(f"Bot is not admin in channel {channel_id}")
-        except Exception as e:
-            logger.warning(f"Cannot create invite link for {channel_id}: {e}")
-        
-        # Fallback to username-based link
-        if not chat:
-            chat = await bot.get_chat(channel_id)
-            
-        if hasattr(chat, 'username') and chat.username:
-            return f"https://t.me/{chat.username}"
-            
-    except Exception as e:
-        logger.error(f"Error getting invite link for {channel_id}: {e}")
-    
-    return None
+    return links
 
 async def get_poster(query, bulk=False, id=False, file=None):
     if not id:
